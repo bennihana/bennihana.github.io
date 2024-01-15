@@ -1,0 +1,252 @@
+
+<!DOCTYPE html>
+<!-- This is based on DillingerLee's great template here:
+https://github.com/Team-Code/KA_Offline -->
+<html> 
+ <head>
+    <title>Complex Fourier Series</title>
+</head>
+ <body>
+    <p align="center"> 
+	<!--This draws the Canvas on the webpage -->
+      <canvas id="mycanvas"></canvas> 
+    </p>
+ </body>
+ 
+ <!-- Run all the JavaScript stuff -->
+ <!-- Include the processing.js library -->
+ <!-- See https://khanacademy.zendesk.com/hc/en-us/articles/202260404-What-parts-of-ProcessingJS-does-Khan-Academy-support- for differences -->
+ <script src="gameScripts/javaScriptSystem.js"></script> 
+ 
+ <script>
+    var sketchProc = function(processingInstance) {
+    	with (processingInstance) {
+      size(600, 600);
+//Setup
+angleMode = "radians";
+var rotx2 = function(x,y,theta,a) {return x*cos(theta) - y*sin(theta)+a;};
+var roty2 = function(x,y,theta,a) {return x*sin(theta) + y*cos(theta)+a;};
+var arrow = function(x2,y2,x1,y1) {
+    var length = sqrt(pow(y1-y2,2)+pow(x1-x2,2));
+    var tangent = atan2(y1-y2,x1-x2)+PI/2;
+    strokeWeight(length/40);
+    line(x1,y1,x2,y2);
+    triangle(rotx2(0,1,tangent,x1),roty2(0,0,tangent,y1),rotx2(-length/20,length/10,tangent,x1),roty2(-length/20,length/10,tangent,y1),rotx2(length/20,length/10,tangent,x1),roty2(length/20,length/10,tangent,y1));
+    strokeWeight(0.2);
+};
+
+//Replicated y - Equation
+var equation = function(x) {
+    x = abs(x-1);
+    if(x < 0.19) {
+        return cos(x*8*PI + PI/4);
+    } else if(x < 0.4) {
+        return cos(x*5*2*PI)/8+0.507;
+    } if(x < 0.5) {
+        return cos(x*6*PI + 5.5*PI/4);
+    } else if(x < 0.75) {
+        return cos(x*8*PI + PI/2)/8+0.507;
+    } else {
+        return cos(x*8*PI + PI/4)/2-0.2;
+    }
+};
+//Finds Coefficient of sins
+var coefficient = function(t) {
+    //find integral of equation from 0 to 2pi
+    var integral = 0;
+    var accuracy = 0.001;
+    for(var i = 0;i < 1;i+=accuracy) {
+        var y = equation(i)*sin(-t*i*2*PI);
+        integral+=y*accuracy;
+    }
+    //Fourier formula
+    return integral;
+};
+var iCoefficient = function(t) {
+    //find integral of equation from 0 to 2pi
+    var integral = 0;
+    var accuracy = 0.001;
+    for(var i = 0;i < 1;i+=accuracy) {
+        var y = equation(i)*cos(-t*i*2*PI);
+        integral+=y*accuracy;
+    }
+    //Fourier formula
+    return integral;
+};
+//Replicated x - Equation
+var equation2 = function(x) {
+    if(x < 0.19) {
+        return sin(x*8*PI + PI/4);
+    } else if(x < 0.4) {
+        return sin(x*5*2*PI)/8-0.207;
+    } else if(x < 0.5) {
+        return sin(x*6*PI + 5.5*PI/4);
+    } else if(x < 0.75) {
+        return sin(x*8*PI + PI/2)/8+0.607;
+    } else {
+        return sin(x*8*PI + PI/4)/2.5+0.45;
+    }
+};
+//Finds Coefficient of sins
+var coefficient2 = function(t) {
+    //find integral of equation from 0 to 2pi
+    var integral = 0;
+    var accuracy = 0.001;
+    for(var i = 0;i < 1;i+=accuracy) {
+        var y = equation2(i)*sin(-t*i*2*PI);
+        integral+=y*accuracy;
+    }
+    //Fourier formula
+    return integral;
+};
+var iCoefficient2 = function(t) {
+    //find integral of equation from 0 to 2pi
+    var integral = 0;
+    var accuracy = 0.001;
+    for(var i = 0;i < 1;i+=accuracy) {
+        var y = equation2(i)*cos(-t*i*2*PI);
+        integral+=y*accuracy;
+    }
+    //Fourier formula
+    return integral;
+};
+var equation = function(x) {
+    x = abs(x-1);
+    if(x < 0.2) {
+        return sin((5/6)*10*PI*-x-4*PI/3)/7-0.3;
+    } else if(x < 0.4) {
+        return x*3-0.4-0.5;
+    } else if(x < 0.6) {
+        return -4*pow(2*x-0.8,3)+0.34;
+    } else if(x < 0.8) {
+        return pow(6*x-6*0.7,3)+0.414;
+    } else {
+        return -(x-0.8)*4+0.7;
+    }
+};
+var equation2 = function(x) {
+    if(x < 0.2) {
+        return cos((5/6)*10*PI*-x-4*PI/3)/5+0.30;
+    } else if(x < 0.4) {
+        return 0.0625;
+    } else if(x < 0.6) {
+        return (-2*x+0.8)/4+0.0625;
+    } else if(x < 0.8) {
+        return (4*x-1.6)/4-0.30;
+    } else {
+        return 0.15;
+    }
+};
+
+
+frameRate(20);
+var userControl = false;
+var zoom = Math.pow(10,2.4);
+var t = 0;
+var overallspeed = 2*PI/20/100;
+var numCircles = 200;
+var follow =  false;
+var haveTrail = true;
+
+//Data for all cicles
+var radius = [0];
+var turn = [0];
+var speed = [0];
+//Calcultaing coefficients for all circles
+for(var i = 0;i < numCircles/2;i++) {
+    /**Positive Speeds**/
+    //Adds imaginary coefficients with real coefficients
+    var real  = coefficient(i) + iCoefficient2(i);
+    var imaginary = iCoefficient(i) + coefficient2(i);
+    
+    //Radius = Distance of complex point to origin
+    radius[radius.length] = sqrt(pow(real,2)+pow(imaginary,2));
+    //Use tangent^-1 to find theta
+    turn[turn.length] = atan2(imaginary,real);
+    speed[speed.length] = i;
+    if(i === 0) {continue;}
+    /**Negative Speeds**/
+    //Adds imaginary coefficients with real coefficients
+    var real  = coefficient(-i) + iCoefficient2(-i);
+    var imaginary = iCoefficient(-i) + coefficient2(-i);
+    //Radius = Distance of complex point to origin
+    radius[radius.length] = sqrt(pow(real,2)+pow(imaginary,2));
+    //Use tangent^-1 to find theta
+    turn[turn.length] = atan2(imaginary,real);
+    speed[speed.length] = -i;
+}
+
+
+var followEnd = [0,0,0,0];//Data for following tail
+var trail = [];
+
+draw = function() {
+    strokeWeight(0.2);
+    stroke(255, 255, 255);
+    background(0, 0, 0);
+    noFill();
+    text((t%(2*PI))/(2*PI),100,100);
+    
+    var startingpos = [300,300];
+    
+    for(var i = 0;i < numCircles;i++) {
+        //Circles
+        strokeWeight(0.2);
+        //ellipse((startingpos[i*2]-300)*zoom+300-followEnd[0],(startingpos[(i*2)+1]-300)*zoom+300-followEnd[1],(abs(radius[i])*2)*zoom,(abs(radius[i])*2)*zoom);
+        //Updates where to draw circle on last circle
+        startingpos[startingpos.length] = rotx2(-radius[i],0,t*speed[i]+turn[i],startingpos[i*2]);
+        startingpos[startingpos.length] = roty2(-radius[i],0,t*speed[i]+turn[i],startingpos[i*2+1]);
+        
+        //Line Connectors
+        fill(122, 122, 122);
+        stroke(122);
+        arrow((startingpos[i*2]-300)*zoom+300-followEnd[0],(startingpos[(i*2)+1]-300)*zoom+300-followEnd[1],(startingpos[i*2+2]-300)*zoom+300-followEnd[0],(startingpos[(i*2)+3]-300)*zoom+300-followEnd[1]);
+        noFill();
+        
+        //Follow?
+        if(i > numCircles-numCircles/2 && follow) {
+            //Follow adds the last few circles positions?
+            followEnd[2]+=(startingpos[i*2]-300)*zoom;
+            followEnd[3]+=(startingpos[(i*2)+1]-300)*zoom;
+        }
+        //final translation is average of last circles positions
+        if(i === numCircles-1 && follow) {
+            followEnd[0] = followEnd[2]/(numCircles/2);
+            followEnd[1] = followEnd[3]/(numCircles/2);
+            followEnd[2] = 0;
+            followEnd[3] = 0;
+        }
+        
+    }
+    if((t%(4*PI))/(2*PI) > 1.99) {
+        trail = [];
+    }
+    if(haveTrail) {
+        trail.unshift([(startingpos[startingpos.length-2]-300),(startingpos[startingpos.length-1]-300)]);
+    }
+    stroke(255, 251, 0);
+    for(var i = 1;i < trail.length;i++) {
+        line(trail[i][0]*zoom+300-followEnd[0],trail[i][1]*zoom+300-followEnd[1],trail[i-1][0]*zoom+300-followEnd[0],trail[i-1][1]*zoom+300-followEnd[1]);
+    }
+    
+    t+=overallspeed;
+    if((t%(4*PI))/(2*PI) < 0.99 && !userControl) {
+        zoom = Math.pow(10,mouseX/300 + 2);
+        follow =  true;
+    } else if(!userControl) {
+        zoom = Math.pow(10,2.4);
+        follow =  false;
+        followEnd = [0,0,0,0];
+    }
+};
+
+
+    }};
+
+    // Get the canvas that Processing-js will use
+    var canvas = document.getElementById("mycanvas"); 
+    // Pass the function sketchProc (defined in myCode.js) to Processing's constructor.
+    var processingInstance = new Processing(canvas, sketchProc); 
+ </script>
+
+</html>
