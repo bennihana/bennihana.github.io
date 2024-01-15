@@ -1,0 +1,1364 @@
+
+<!DOCTYPE html>
+<!-- This is based on DillingerLee's great template here:
+https://github.com/Team-Code/KA_Offline -->
+<html> 
+ <head>
+    <title>Wireframe</title>
+</head>
+ <body>
+    <p align="center"> 
+	<!--This draws the Canvas on the webpage -->
+      <canvas id="mycanvas"></canvas> 
+    </p>
+ </body>
+ 
+ <!-- Run all the JavaScript stuff -->
+ <!-- Include the processing.js library -->
+ <!-- See https://khanacademy.zendesk.com/hc/en-us/articles/202260404-What-parts-of-ProcessingJS-does-Khan-Academy-support- for differences -->
+ <script src="resources/javaScriptSystem.js"></script> 
+ 
+ <script>
+    var sketchProc = function(processingInstance) {
+    	with (processingInstance) {
+      size(400, 400); 
+      frameRate(60);
+        
+      
+/**
+    
+     _         _   _                    _____ 
+    | |       | | | |                  /  __ \
+    | |       | |  _   _  _    ____    | | |_|  _  _   ___      _     _    ____  
+    | |   _   | | | | | |/_\  /    \  _  |_    | |/_\ |__  \   |  \_/  |  /    \
+    | |  / \  | | | | |  /   |  ___|  _  __|   |  /    ___| |  | |\_/| | |  ___|     
+     \ \/ _ \/ /  | | | |    | |__     | |     | |    /     |  | |   | | | |__  
+      \__/ \__/   |_| |_|     \___|    |_|     |_|    \____/ \ |_|   |_|  \___| 
+    
+    Move - Arrow Keys
+    Shoot(Useless, but cool) - Z
+    Map - X
+    Run - C
+    Restart Level - R
+    Backspace - Return to Menu
+    
+    SlowMo - Slows down time when using map
+    Practice Mode - Turns off hitboxes
+    
+**/
+
+
+var banjoS = function(banjo) {return sin(banjo*PI/180);};
+var banjoC = function(banjo) {return cos(banjo*PI/180);};
+
+var pos = [120,-120];
+var speed = 1;
+var bullet = [[]];
+var shoot = [true,true];
+var level;
+var load;
+var lineData = [[0,-200,250,0],[0,-200,744,91],[250,-200,744,91],[-15,544,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+var enemies = [[0,0,100,91],[240,100,100,91],[0,200,100,91]];
+var enemyHitBox = [[]];
+var enemyData = [[0],[1],[0]];
+var goal = [[]];
+
+var timer = millis();
+var finalTime = 0;
+var slowmo = false;//Allows you to slow down time, when using the map.
+var practice = false;//Turns off hitboxes and allows you to practice.
+
+var bobbing = 20;
+
+/*        Methods        */
+
+//Custom Rotate function
+var rotx = function(x,y,theta,a) {return x*banjoC(theta) - y*banjoS(theta)+a;};//rotates x value
+var roty = function(x,y,theta,a) {return x*banjoS(theta) + y*banjoC(theta)+a;};//rotates y value
+
+//Collisions
+//Modified Constrain Functions
+var constr = function(c1,c2,a,b,c,w,h) {return c1+(w/2)>a && c1+(w/2)<a+(speed+1) && c2+(h/2)>b && c2-(h/2)<b+c?a-(w/2):c1;};
+var constr2 = function(c1,c2,a,b,c,w,h) {return c1-(w/2)<a && c1-(w/2)>a-(speed+1) && c2+(h/2)>b && c2-(h/2)<b+c?a+(w/2):c1;};
+
+//Collision Function(Blocks Player)
+var collision = function(x,y,w,h) {
+    pos[0] = constr(pos[0],pos[1],x,y,h,5,5);
+    pos[0] = constr2(pos[0],pos[1],x+w,y,h,5,5);
+    pos[1] = constr(pos[1],pos[0],y,x,w,5,5);
+    pos[1] = constr2(pos[1],pos[0],y+h,x,w,5,5);
+};
+var drawCollision = function(data) {
+    for(var i = 0;i < data.length;i+=1) {
+        var x1 = data[i][0]-25;
+        var y1 = data[i][1];
+        var length = data[i][2];
+        
+        for(var i2 = 0;i2 < length+10;i2+=10) {
+            collision(rotx(i2,0,data[i][3],0)+x1,roty(i2,0,data[i][3],0)+y1,10,10);
+        }
+    }
+};
+
+//Fix dead function: Can only be 90 degrees
+var dead = function(data) {
+    for(var i = 0;i < data.length;i++) {
+        var x = data[i][0]-20;
+        var y = data[i][1];
+        var width = data[i][2];
+        var height = data[i][3];
+        var distX =  dist(pos[0], 0,x+(width/2), 0);
+        var distY = dist(0, pos[1], 0, y+(height/2));
+        if(distX <= width/2 && distY <= height/2 && practice === false){
+            load = 1;
+        }
+    }
+};
+var completed = function(data) {
+    for(var i = 0;i < data.length;i++) {
+        var x = data[i][0]-20;
+        var y = data[i][1];
+        var width = data[i][2];
+        var height = data[i][3];
+        var distX =  dist(pos[0], 0,x+(width/2), 0);
+        var distY = dist(0, pos[1], 0, y+(height/2));
+        if(distX <= width/2 && distY <= height/2){
+            level+=1;
+            load = 1;
+        }
+    }
+};
+
+var doSomething = function(data) {
+    var x = data.x;
+    var y = data.y;
+    var width = data.width;
+    var height = data.height;
+    var distX =  dist(pos[0], 0,x+(width/2), 0);
+    var distY = dist(0, pos[1], 0, y+(height/2));
+    if(distX <= width/2 && distY <= height/2){
+        data.thing();
+    }
+};
+
+//Find closest point between a point and line segment
+var pointLineIntersection = function(x,y,length,degree,pX,pY) {
+    var x2 = rotx(length,0,degree,x);
+    var y2 = roty(length,0,degree,y);
+    var slope = (y-y2)/(x-x2);
+    var yInt = y-slope*x;
+    //0 = slope*x + -y + yInt
+    var slopeInverse = -(x-x2)/(y-y2);//Perpendicular to slope
+    var meowInt = pY-slopeInverse*pX;
+    //0 = slopeInverse*x + -y + meowInt
+    var intersectionX = ((-1*meowInt) - (-1*yInt)) / ((slope*-1) - (slopeInverse*-1));
+    var intersectionY = ((yInt*slopeInverse) - (meowInt*slope)) / ((-1*slope) - (-1*slopeInverse));
+    return [intersectionX, intersectionY];
+};
+var distPointSegment = function(x,y,length,degree,pX,pY) {
+    var closeX = 0;
+    var closeY = 0;
+    var x2 = rotx(length,0,degree,x);
+    var y2 = roty(length,0,degree,y);
+    var intersection = pointLineIntersection(x,y,length,degree,pX,pY);
+    
+    //If intersection is on line, then returns that intersection pair
+    if(intersection[0] > min(x,x2) && intersection[0] < max(x,x2) && intersection[1] > min(y,y2) && intersection[1] < max(y,y2)) {
+            closeX = intersection[0];
+            closeY = intersection[1];
+    //else returns the lowest value between the two line ends
+    } else if(dist(x,y,pX,pY) < dist(x2,y2,pX,pY)) {
+        closeX = x;
+        closeY = y;
+    } else {
+        closeX = x2;
+        closeY = y2;
+    }
+    return [closeX,closeY];
+};
+
+
+/*        Graphics        */
+
+//Walls
+var drawSide = function(x,y) {
+    
+    //Top and bottom values of the face
+    var yUp = (200*y) / (y + bobbing);
+    var yDown = (-200*y) / (y - bobbing+40) + 400;
+    
+    // X
+    var xNew = (200*(y+x)) / (y + 20);
+    
+    if(y >= 0) {
+        line(xNew,yUp,xNew,yDown);
+    }
+    return [xNew,yUp,xNew,yDown];
+};
+var drawFaces = function(data,c) {
+    for(var i = 0;i < data.length;i++) {
+        var x1 = data[i][0];
+        var y1 = data[i][1];
+        var length = data[i][2];
+        
+        var x2 = rotx(length,0,data[i][3],x1);
+        var y2 = roty(length,0,data[i][3],y1);
+        
+        //Makes wall disappear when behind you
+        if(y1 - pos[1] < 0 && y2 - pos[1] < 0) {
+            noStroke();
+            noFill();
+            //Fixes Graphical Glitch when a side goes behind you
+        } else {
+            stroke(0, 0, 0);
+            if(c === false || c === undefined) {
+                noFill();// Deletes colour if wanted
+            } else {fill(c[0],c[1],c[2],alpha(color(0,0,0,c[3])));}
+            while(y2 - pos[1] < 0) {
+                length-=1;
+                x2 = rotx(length,0,data[i][3],x1);
+                y2 = roty(length,0,data[i][3],y1);
+            }
+            var mult = 0;
+            while(y1 - pos[1] < 0) {
+                mult-=0.01;
+                var slope = (y1-y2)/(x1-x2)*mult;
+                var invSlope = (x1-x2)/(y1-y2)*mult;
+                x1-=invSlope;
+                y1+=abs(slope);
+            }
+        }
+        
+        
+        var face1 = drawSide(x1-pos[0],y1-pos[1]);
+        var face2 = drawSide(x2-pos[0],y2-pos[1]);
+        
+        //Actually draws face
+        beginShape();
+        vertex(face1[0],face1[1]);
+        vertex(face1[2],face1[3]);
+        vertex(face2[2],face2[3]);
+        vertex(face2[0],face2[1]);
+        vertex(face1[0],face1[1]);
+        endShape();
+    }
+};
+
+//Projectiles
+var drawPro1 = function(x,y) {
+    
+    //Top and bottom values of the face
+    var yUp = (200*y) / (y + 10);
+    var yDown = (-200*y) / (y + 10) + 400;
+    
+    // X
+    var xNew = (200*(y+x)) / (y + 20);
+    
+    if(y >= 0) {
+        line(xNew,yUp,xNew,yDown);
+    }
+    return [xNew,yUp,xNew,yDown];
+};
+var drawPro2 = function(data) {
+    for(var i = 0;i < data.length;i++) {
+        var x1 = data[i][0];
+        var y1 = data[i][1];
+        var length = data[i][2];
+        
+        var x2 = rotx(length,0,data[i][3],x1);
+        var y2 = roty(length,0,data[i][3],y1);
+        
+        //Makes wall disappear when behind you
+        if(y1 - pos[1] < 0 && y2 - pos[1] < 0) {
+            noStroke();
+            //Fixes Graphical Glitch when a side goes behind you
+        } else {
+            stroke(0, 0, 0);
+            
+            while(y2 - pos[1] < 0) {
+                length-=1;
+                x2 = rotx(length,0,data[i][3],x1);
+                y2 = roty(length,0,data[i][3],y1);
+            }
+            var mult = 0;
+            while(y1 - pos[1] < 0) {
+                mult-=0.01;
+                var slope = (y1-y2)/(x1-x2)*mult;
+                var invSlope = (x1-x2)/(y1-y2)*mult;
+                x1-=invSlope;
+                y1+=abs(slope);
+            }
+        }
+        
+        
+        var face1 = drawPro1(x1-pos[0],y1-pos[1]);
+        var face2 = drawPro1(x2-pos[0],y2-pos[1]);
+        
+        //Actually draws face
+        beginShape();
+        vertex(face1[0],face1[1]);
+        vertex(face1[2],face1[3]);
+        vertex(face2[2],face2[3]);
+        vertex(face2[0],face2[1]);
+        vertex(face1[0],face1[1]);
+        endShape();
+    }
+};
+
+//Floor
+var drawFloorSide = function(x,y,width) {
+    
+    //Top and bottom values of the face
+    var yDown = (-200*y) / (y - bobbing+40) + 400;
+    
+    // X
+    var xLeft = (200*(y+x)) / (y + 20);
+    var xRight = (200*(y+x+width)) / (y + 20);
+    
+    if(y >= 0) {
+        //line(xNew,yUp,xNew,yDown);
+    }
+    return [xLeft,yDown,xRight,yDown];
+};
+var drawFloor = function(data,c) {
+    for(var i = 0;i < data.length;i++) {
+        var x1 = data[i][0];
+        var y1 = data[i][1];
+        var width = data[i][2];
+        var depth = data[i][3];
+        
+        var x2 = x1;
+        var y2 = y1+depth;
+        
+        //Makes wall disappear when behind you
+        if(y1 - pos[1] < 0 && y2 - pos[1] < 0) {
+            noStroke();
+            noFill();
+            //Fixes Graphical Glitch when a side goes behind you
+        } else {
+            stroke(0, 0, 0);
+            if(c === false || c === undefined) {
+                noFill();// Deletes colour if wanted
+            } else {fill(c[0],c[1],c[2],alpha(color(0,0,0,c[3])));}
+            while(y1 - pos[1] < 0) {
+                y1+=1;
+            }
+            while(y2 - pos[1] < 0) {
+                y2+=1;
+            }
+        }
+        
+        
+        var face1 = drawFloorSide(x1-pos[0],y1-pos[1],width);
+        var face2 = drawFloorSide(x2-pos[0],y2-pos[1],width);
+        
+        //Actually draws face
+        beginShape();
+        vertex(face1[0],face1[1]);
+        vertex(face1[2],face1[3]);
+        vertex(face2[2],face2[3]);
+        vertex(face2[0],face2[1]);
+        vertex(face1[0],face1[1]);
+        endShape();
+    }
+};
+
+
+var drawText = function(txt,x,y,height) {
+    
+    //Top and bottom values of the face
+    var yUp = (200*y) / (y + 20);
+    var yDown = (-200*y) / (y + 20) + 400;
+    
+    // X
+    var xNew = ((200*(y+x)) / (y + 20));
+    
+    if(y >= 0) {
+        fill(0, 0, 0);
+        textAlign(CENTER,CENTER);
+        text(txt,xNew,height-bobbing+20);
+        textAlign(LEFT);
+        //line(xNew,yUp,xNew,yDown);
+    }
+};
+
+//Map
+var drawMap = function(data,mapX,mapY,mapSize,origin,c) {
+    for(var i = 0;i < data.length;i++) {
+        var x1 = data[i][0]-origin[0];
+        var y1 = data[i][1]-origin[1];
+        var length = data[i][2];
+        
+        var x2 = rotx(length,0,data[i][3],x1);
+        var y2 = roty(length,0,data[i][3],y1);
+        
+        //Walls
+        strokeWeight(1);
+        if(c !== false || c !== undefined) {
+            stroke(c[0],c[1],c[2],alpha(color(0,0,0,c[3])));//colour
+        } else {stroke(0,0,0);}//Default colour is black
+        line((x1*mapSize)+mapX,-(y1*mapSize)+mapY,(x2*mapSize)+mapX,-(y2*mapSize)+mapY);
+        //Player
+        strokeWeight(3);
+        point(((pos[0]+20-origin[0])*mapSize)+mapX,-((pos[1]-origin[1])*mapSize)+mapY);
+    }
+};
+var drawFloorMap = function(data,mapX,mapY,mapSize,origin,c) {
+    for(var i = 0;i < data.length;i++) {
+        var x1 = data[i][0]-origin[0];
+        var y1 = data[i][1]-origin[1];
+        var width = data[i][2];
+        var depth = data[i][3];
+        
+        //Walls
+        strokeWeight(1);
+        if(c !== false || c !== undefined) {
+            stroke(0,0,0);
+            fill(c[0],c[1],c[2],alpha(color(0,0,0,c[3])));//colour
+        } else {stroke(0,0,0);noFill();}//Default colour is black
+        rect((x1*mapSize)+mapX,-(y1*mapSize)+mapY,width*mapSize,-depth*mapSize);
+    }
+    noFill();
+};
+
+level = -1;
+load = true;//Only loads when level first appears.
+var levels = {
+    "template" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,242,91],[250,-200,242,91],[-7,44,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [[]];
+            enemyData = [[]];
+            goal = [[-2,-55,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFloor(goal,[0,255,0,125]);// Goal
+        completed(goal);// Completed Level
+    },
+    "test" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[20,0,100,-45],[20,0,100,45],[90.5,71,100,0],[261,0,100,-135],[261,0,100,135],[90.5,-70,30,0],[160.5,-70,30,0],[-100,-200,550,0],[-100,-200,744,91],[450,-200,744,91],[-113,544,550,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [[]];
+            goal = [[-110,445,245,100]];
+            for(var i = 0;i < 360;i+=18) {
+                lineData[lineData.length] = [140.5,0,50,i];
+            }
+            for(var i = 0;i < 10;i+=1) {
+                lineData[lineData.length] = [300,i*50,50,91];
+                lineData[lineData.length] = [350,i*50,50,91];
+            }
+            load = false;
+        }
+        for(var i = 0;i < 20;i+=1) {
+            lineData[11+i][3]+=1;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFloor(goal,[0,255,0,125]); //Goal
+        completed(goal);// Completed Level
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"Test\"",0,20);
+        noFill();
+    },
+    
+    //Menu
+    "menu" : function() {
+        var meow = (millis()/10)%360;
+        var rotRect1 = [[rotx(-20,-20,meow,75),roty(-20,-20,meow,150),40,meow],[rotx(-20,-20,meow,75),roty(-20,-20,meow,150),40,meow+90],[rotx(20,-20,meow,75),roty(20,-20,meow,150),40,meow+90],[rotx(-20,20,meow,75),roty(-20,20,meow,150),40,meow]];
+        
+        var rotRect2 = [[rotx(-20,-20,meow,175),roty(-20,-20,meow,150),40,meow],[rotx(-20,-20,meow,175),roty(-20,-20,meow,150),40,meow+90],[rotx(20,-20,meow,175),roty(20,-20,meow,150),40,meow+90],[rotx(-20,20,meow,175),roty(-20,20,meow,150),40,meow]];
+        
+        var rotRect3 = [[rotx(-20,-20,meow,125),roty(-20,-20,meow,200),40,meow],[rotx(-20,-20,meow,125),roty(-20,-20,meow,200),40,meow+90],[rotx(20,-20,meow,125),roty(20,-20,meow,200),40,meow+90],[rotx(-20,20,meow,125),roty(-20,20,meow,200),40,meow]];
+        
+        var doSomething1 = {
+            x : 50,
+            y : 125,
+            width : 50,
+            height : 50,
+            thing : function() {
+                load = true;
+                level = 0;
+            }
+        };
+        var doSomething2 = {
+            x : 150,
+            y : 125,
+            width : 50,
+            height : 50,
+            thing : function() {
+                load = true;
+                level = -2;
+            }
+        };
+        var doSomething3 = {
+            x : 100,
+            y : 175,
+            width : 50,
+            height : 50,
+            thing : function() {
+                load = true;
+                level = -3;
+            }
+        };
+        
+        if(load) {
+            pos = [105,50];
+            lineData = [[0,0,250,0],[0,0,242,91],[250,0,242,91],[-7,244,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [[]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFloor(goal,[0,255,0,125]);// Goal
+        //drawFloor([[doSomething2.x,doSomething2.y,doSomething2.width,doSomething2.height]],[0,255,0,125]);
+        
+        drawFaces(rotRect1,[0,255,0,125]);
+        drawFaces(rotRect2,[0,0,255,125]);
+        drawFaces(rotRect3,[255,0,0,125]);
+        doSomething(doSomething1);
+        doSomething(doSomething2);
+        doSomething(doSomething3);
+        
+        drawText("Start",75-pos[0],150-pos[1],200);
+        drawText("Options",175-pos[0],150-pos[1],200);
+        drawText("Level Select",125-pos[0],200-pos[1],200);
+        
+        /*drawMap(rotRect1,200,300,0.4,[0,0],[0,0,0]);
+        drawMap(rotRect2,200,300,0.4,[0,0],[0,0,0]);
+        drawMap(lineData,200,300,0.4,[0,0],[0,0,0]);*/
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level: \"Menu\"",10,20);
+        noFill();
+        textSize(50);
+        fill(54, 54, 54);
+        text("Wireframe",100,350);
+        rect(75,300,10,65);
+        textSize(12);
+    },
+    "options" : function() {
+        var meow = (millis()/10)%360;
+        var rotRect1 = [[rotx(-20,-20,meow,50),roty(-20,-20,meow,150),40,meow],[rotx(-20,-20,meow,50),roty(-20,-20,meow,150),40,meow+90],[rotx(20,-20,meow,50),roty(20,-20,meow,150),40,meow+90],[rotx(-20,20,meow,50),roty(-20,20,meow,150),40,meow]];
+        
+        var rotRect2 = [[rotx(-20,-20,meow,125),roty(-20,-20,meow,150),40,meow],[rotx(-20,-20,meow,125),roty(-20,-20,meow,150),40,meow+90],[rotx(20,-20,meow,125),roty(20,-20,meow,150),40,meow+90],[rotx(-20,20,meow,125),roty(-20,20,meow,150),40,meow]];
+        
+        var rotRect3 = [[rotx(-20,-20,meow,200),roty(-20,-20,meow,150),40,meow],[rotx(-20,-20,meow,200),roty(-20,-20,meow,150),40,meow+90],[rotx(20,-20,meow,200),roty(20,-20,meow,150),40,meow+90],[rotx(-20,20,meow,200),roty(-20,20,meow,150),40,meow]];
+        
+        var doSomething1 = {
+            x : 25,
+            y : 125,
+            width : 50,
+            height : 50,
+            thing : function() {
+                load = true;
+                level = -1;
+            }
+        };//Back
+        var doSomething2 = {
+            x : 100,
+            y : 125,
+            width : 50,
+            height : 50,
+            thing : function() {
+                load = true;
+                if(slowmo) {
+                    slowmo = false;
+                } else {slowmo = true;}
+            }
+        };//Alters SlowMo
+        var doSomething3 = {
+            x : 175,
+            y : 125,
+            width : 50,
+            height : 50,
+            thing : function() {
+                load = true;
+                if(practice) {
+                    practice = false;
+                } else {practice = true;}
+            }
+        };//Alters Practice Mode
+        
+        if(load) {
+            pos = [105,50];
+            lineData = [[0,0,250,0],[0,0,242,91],[250,0,242,91],[-7,244,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [[]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFloor(goal,[0,255,0,125]);// Goal
+        //drawFloor([[doSomething2.x,doSomething2.y,doSomething2.width,doSomething2.height]],[0,255,0,125]);
+        
+        drawFaces(rotRect1,[255,0,0,125]);
+        drawFaces(rotRect2,[0,255,0,125]);
+        drawFaces(rotRect3,[0,0,255,125]);
+        doSomething(doSomething1);
+        doSomething(doSomething2);
+        doSomething(doSomething3);
+        
+        drawText("Back",50-pos[0],150-pos[1],200);
+        drawText("SlowMo",125-pos[0],150-pos[1],200);
+        drawText("Practice Mode",200-pos[0],150-pos[1],200);
+        
+        /*drawMap(rotRect1,200,300,0.4,[0,0],[0,0,0]);
+        drawMap(rotRect2,200,300,0.4,[0,0],[0,0,0]);
+        drawMap(lineData,200,300,0.4,[0,0],[0,0,0]);*/
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level: \"Options\"",10,20);
+        noFill();
+    },
+    "select" : function() {
+        var meow = (millis()/10)%360;
+        var rotRect1 = [[rotx(-20,-20,meow,25),roty(-20,-20,meow,150),40,meow],[rotx(-20,-20,meow,25),roty(-20,-20,meow,150),40,meow+90],[rotx(20,-20,meow,25),roty(20,-20,meow,150),40,meow+90],[rotx(-20,20,meow,25),roty(-20,20,meow,150),40,meow]];
+        
+        var rotRect2 = [[rotx(-20,-20,meow,100),roty(-20,-20,meow,150),40,meow],[rotx(-20,-20,meow,100),roty(-20,-20,meow,150),40,meow+90],[rotx(20,-20,meow,100),roty(20,-20,meow,150),40,meow+90],[rotx(-20,20,meow,100),roty(-20,20,meow,150),40,meow]];
+        
+        var rotRect3 = [[rotx(-20,-20,meow,175),roty(-20,-20,meow,150),40,meow],[rotx(-20,-20,meow,175),roty(-20,-20,meow,150),40,meow+90],[rotx(20,-20,meow,175),roty(20,-20,meow,150),40,meow+90],[rotx(-20,20,meow,175),roty(-20,20,meow,150),40,meow]];
+        
+        var rotRect4 = [[rotx(-20,-20,meow,250),roty(-20,-20,meow,150),40,meow],[rotx(-20,-20,meow,250),roty(-20,-20,meow,150),40,meow+90],[rotx(20,-20,meow,250),roty(20,-20,meow,150),40,meow+90],[rotx(-20,20,meow,250),roty(-20,20,meow,150),40,meow]];
+        
+        var doSomething1 = {
+            x : 0,
+            y : 125,
+            width : 50,
+            height : 50,
+            thing : function() {
+                load = true;
+                level = -1;
+            }
+        };//Back
+        var doSomething2 = {
+            x : 75,
+            y : 125,
+            width : 50,
+            height : 50,
+            thing : function() {
+                pos = [120,25];
+                if(enemyData > 1) {
+                    enemyData-=1;
+                }
+            }
+        };//selct-=1
+        var doSomething3 = {
+            x : 150,
+            y : 125,
+            width : 50,
+            height : 50,
+            thing : function() {
+                load = true;
+                level = enemyData;
+            }
+        };//Go
+        var doSomething4 = {
+            x : 225,
+            y : 125,
+            width : 50,
+            height : 50,
+            thing : function() {
+                pos = [120,25];
+                if(enemyData < 13) {
+                    enemyData+=1;
+                }
+            }
+        };//Go
+        
+        if(load) {
+            pos = [120,25];
+            lineData = [[0,0,300,0],[0,0,242,91],[300,0,242,91],[-7,244,303,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [[]];
+            enemyData = 0;
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFloor(goal,[0,255,0,125]);// Goal
+        //drawFloor([[doSomething2.x,doSomething2.y,doSomething2.width,doSomething2.height]],[0,255,0,125]);
+        
+        drawFaces(rotRect1,[255,0,0,125]);
+        drawFaces(rotRect2);
+        drawFaces(rotRect3,[0,255,0,125]);
+        drawFaces(rotRect4);
+        doSomething(doSomething1);
+        doSomething(doSomething2);
+        doSomething(doSomething3);
+        doSomething(doSomething4);
+        
+        drawText("Back",25-pos[0],150-pos[1],200);
+        drawText("◀",100-pos[0],150-pos[1],200);
+        drawText("Go!",175-pos[0],150-pos[1],200);
+        drawText("▶",250-pos[0],150-pos[1],200);
+        
+        
+        drawText("Level Number: " + enemyData,140-pos[0],100-pos[1],100);
+        
+        /*drawMap(rotRect1,200,300,0.4,[0,0],[0,0,0]);
+        drawMap(rotRect2,200,300,0.4,[0,0],[0,0,0]);
+        drawMap(lineData,200,300,0.4,[0,0],[0,0,0]);*/
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level: \"Options\"",10,20);
+        noFill();
+    },
+    
+    //Levels
+    "goal" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,242,91],[250,-200,242,91],[-7,44,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [[]];
+            enemyData = [[]];
+            goal = [[-2,-55,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFloor(goal,[0,255,0,125]);// Goal
+        completed(goal);// Completed Level
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"The Green Floor\"",10,20);
+        noFill();
+    },
+    "moving" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,744,91],[250,-200,744,91],[-15,544,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [[0,0,100,91],[240,100,100,91],[0,200,100,91]];
+            enemyHitBox = [[0,0,5,100],[240,100,5,100],[0,200,5,100]];
+            enemyData = [[0],[1],[0]];
+            goal = [[-10,445,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        
+        for(var i = 0;i < enemyData.length;i++) {
+            if(enemyData[i][0] === 0) {
+                enemies[i][0]+=2;
+            } else {
+                enemies[i][0]-=2;
+            }
+            if(enemies[i][0] < 0) {
+                enemyData[i][0] = 0;
+            }
+            if(enemies[i][0] > 240) {
+                enemyData[i][0] = 1;
+            }
+            enemyHitBox[i][0] = enemies[i][0];
+        }
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"The Red Walls\"",10,20);
+        noFill();
+    },
+    "run" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,744,91],[250,-200,744,91],[-15,544,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [[0,0,300,91]];
+            enemyHitBox = [[0,0,5,300]];
+            enemyData = [[0]];
+            goal = [[-10,445,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        
+        for(var i = 0;i < enemyData.length;i++) {
+            if(enemyData[i][0] === 0) {
+                enemies[i][0]+=2;
+            } else {
+                enemies[i][0]-=2;
+            }
+            if(enemies[i][0] < 0) {
+                enemyData[i][0] = 0;
+            }
+            if(enemies[i][0] > 240) {
+                enemyData[i][0] = 1;
+            }
+            enemyHitBox[i][0] = enemies[i][0];
+        }
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"RUN!\"",10,20);
+        noFill();
+    },
+    "map" : function() {
+        if(load) {
+            pos = [120,445];
+            lineData = [[0,-200,250,0],[0,-200,744,91],[250,-200,744,91],[-15,544,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [[0,0,160,0],[80,240,160,0],[40,120,160,0]];
+            enemyHitBox = [[0,0,160,5],[80,240,160,5],[40,120,160,5]];
+            enemyData = [[0]];
+            goal = [[0,-200,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"I\'m the Map! I\'m the Map\"",10,20);
+        noFill();
+    },
+    "pace" : function() {
+        if(load) {
+            pos = [5,-120];
+            lineData = [[0,-200,50,0],[0,-200,744,91],[50,-200,744,91],[-15,544,53,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [];
+            enemyHitBox = [];
+            for(var i = 0;i < 8;i++) {
+                enemies[i] = [-0.5*i,50*i,50,0];
+                enemyHitBox[i] = [-0.5*i,50*i,50,5];
+            }
+            goal = [[-10,495,50,50]];
+            load = false;
+        }
+        //Reset
+        if(enemies[0][1] > 50) {
+            for(var i = 0;i < 8;i++) {
+                enemies[i][1]-=50;
+            }
+        }
+        
+        //Movement
+        for(var i = 0;i < 8;i++) {
+            enemies[i][1]+=1.25;
+            enemyHitBox[i][0] = enemies[i][0];
+            enemyHitBox[i][1] = enemies[i][1];
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        
+        
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"Keep Your Pace\"",10,20);
+        noFill();
+    },
+    "relax" : function() {
+        if(load) {
+            pos = [5,-120];
+            lineData = [[0,-200,50,0],[0,-200,744,91],[50,-200,744,91],[-15,544,53,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [];
+            enemyHitBox = [];
+            goal = [[-10,495,50,50]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFloor(goal,[0,255,0,125]);
+        completed(goal);// goal
+        
+        
+        
+        //Level Name
+        fill(0, 0, 0);
+        if(level === 5) {
+            text("Level - \"Ready?\"",10,20);
+        }
+        if(level === 10) {
+            text("Level - \"Relax\"",10,20);
+        }
+        noFill();
+    },
+    "leftRight" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,744,91],[250,-200,744,91],[-15,544,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [[0,0,300,91],[50,0,300,91],[-190,0,190,0],[50,0,190,0]];
+            enemyHitBox = [[0,0,5,300],[50,0,5,300],[-190,0,190,5],[50,0,190,0]];
+            enemyData = 0;
+            goal = [[-10,445,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        
+        for(var i = 0;i < 4;i++) {
+            if(enemyData === 0) {
+                enemies[i][0]+=1;
+            } else {
+                enemies[i][0]-=1;
+            }
+            if(enemies[0][0] < 0) {
+                enemyData = 0;
+            }
+            if(enemies[1][0] > 240) {
+                enemyData = 1;
+            }
+            enemyHitBox[i][0] = enemies[i][0];
+        }
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"Left and Right\"",10,20);
+        noFill();
+    },
+    "different" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,744,91],[250,-200,744,91],[-15,544,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            enemies = [];
+            enemyHitBox = [];
+            enemyData = [0,1,0];
+            for(var i = 0;i < 5;i++) {
+                enemies[enemies.length] = [50*i,0,100,91];
+                enemyHitBox[enemyHitBox.length] = [50*i,0,5,100];
+                enemies[enemies.length] = [50*i,100,100,91];
+                enemyHitBox[enemyHitBox.length] = [50*i,100,5,100];
+                enemies[enemies.length] = [50*i,200,100,91];
+                enemyHitBox[enemyHitBox.length] = [50*i,200,5,100];
+            }
+            goal = [[-10,445,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        for(var i = 0;i < enemies.length;i+=3) {
+            enemies[i][0]+=0.5;
+            enemyHitBox[i][0]+=0.5;
+            if(enemies[i][0] > 240) {
+                enemies[i][0] = 0;
+                enemyHitBox[i][0] = 0;
+            }
+            enemies[i+1][0]-=1;
+            enemyHitBox[i+1][0]-=1;
+            if(enemies[i+1][0] < 0) {
+                enemies[i+1][0] = 240;
+                enemyHitBox[i+1][0] = 240;
+            }
+            enemies[i+2][0]+=1.5;
+            enemyHitBox[i+2][0]+=1.5;
+            if(enemies[i+2][0] > 240) {
+                enemies[i+2][0] = 0;
+                enemyHitBox[i+2][0] = 0;
+            }
+        }
+        
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"Changing Directions\"",10,20);
+        noFill();
+    },
+    "current" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,744,91],[250,-200,744,91],[-15,544,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            //enemies = [[0,0,120,0],[120,0,130,0]];
+            enemies = [];
+            enemyHitBox = [];
+            for(var i = 0;i < 8;i++) {
+                enemies[enemies.length] = [0,50*i,120,0];
+                enemyHitBox[enemyHitBox.length] = [0,50*i,120,5];
+            }
+            for(var i = 0;i < 2;i++) {
+                enemies[enemies.length] = [120,200*i,130,0];
+                enemyHitBox[enemyHitBox.length] = [120,200*i,130,5];
+            }
+            goal = [[-10,445,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        
+        for(var i = 0;i < 8;i++) {
+            enemies[i][1]-=0.5;
+            enemyHitBox[i][1]-=0.5;
+            if(enemies[i][1] < 0) {
+                enemies[i][1] = 400;
+                enemyHitBox[i][1] = 400;
+            }
+        }
+        for(var i = 8;i < 10;i++) {
+            enemies[i][1]-=1;
+            enemyHitBox[i][1]-=1;
+            if(enemies[i][1] < 0) {
+                enemies[i][1] = 400;
+                enemyHitBox[i][1] = 400;
+            }
+        }
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"Against The Current\"",10,20);
+        noFill();
+    },
+    "current2" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,744,91],[250,-200,744,91],[-15,544,253,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            //enemies = [[0,0,120,0],[120,0,130,0]];
+            enemies = [];
+            enemyHitBox = [];
+            for(var i = 0;i < 8;i++) {
+                enemies[enemies.length] = [0,50*i,120,0];
+                enemies[enemies.length] = [120,50*i+25,130,0];
+            }
+            for(var i = 0;i < 7;i++) {//Last two enemies don't have hit boxes
+                enemyHitBox[enemyHitBox.length] = [0,50*i,122,5];
+                enemyHitBox[enemyHitBox.length] = [118,50*i+25,132,5];
+            }
+            goal = [[-10,445,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        
+        for(var i = 0;i < enemies.length;i++) {
+            enemies[i][1]-=0.75;
+            if(enemies[i][1] < 0) {
+                enemies[i][1] = 400;
+            }
+        }
+        for(var i = 0;i < enemyHitBox.length;i++) {
+            enemyHitBox[i][1]-=0.75;
+            if(enemyHitBox[i][1] < 0) {
+                enemyHitBox[i][1] = 350;
+            }
+        }
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"Against The Current 2\"",10,20);
+        noFill();
+    },
+    "brainWall" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,450,91],[250,-200,450,91],[-8,250,250,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            //enemies = [[0,0,120,0],[120,0,130,0]];
+            enemies = [[0,-200,250,0],
+            [0,0,10,0],[70,0,180,0],
+            [0,50,100,0],[150,50,100,0],
+            [0,100,50,0],[80,100,170,0],
+            [0,150,200,0],[220,150,30,0],];
+            enemyHitBox = [[0,-200,250,5],
+            [0,0,15,5],[65,0,185,5],
+            [0,50,105,5],[145,50,105,5],
+            [0,100,55,5],[75,100,175,5],
+            [0,150,205,5],[215,150,35,5]];
+            goal = [[-5,150,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        
+        for(var i = 1;i < enemies.length;i++) {
+            enemies[i][1]-=1;
+            enemyHitBox[i][1]-=1;
+        }
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"脳カベ\"",10,20);
+        noFill();
+    },
+    "brainWall2" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,450,91],[250,-200,450,91],[-8,250,250,0]];// [x,y,length,rotation] rotation can't be 0 or 90
+            //enemies = [[0,0,120,0],[120,0,130,0]];
+            enemies = [[0,-200,250,0],
+            [0,100,10,0],[70,100,180,0],[20,0,230,0],
+            [0,200,180,0],[220,200,30,0],
+            [0,300,50,0],[100,300,150,0],
+            [0,400,100,0],[150,400,100,0],
+            
+            [-25,-200,10,91],[-25,-130,100,91],
+            [-125,-200,250,91],];
+            enemyHitBox = [[0,-200,250,5],
+            [0,100,15,5],[65,100,185,5],[20,0,230,5],
+            [0,200,185,5],[215,200,35,5],
+            [0,300,55,5],[100,300,175,5],
+            [0,400,105,5],[145,400,105,5],
+            
+            [-25,-200,5,10],[-25,-130,5,100],
+            [-125,-200,5,250],];
+            goal = [[-5,150,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        
+        for(var i = 1;i < 10;i++) {
+            enemies[i][1]-=1;
+            enemyHitBox[i][1]-=1;
+        }
+        for(var i = 10;i < enemies.length;i++) {
+            enemies[i][0]+=0.5;
+            enemyHitBox[i][0]+=0.5;
+        }
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"脳カベ 2\"",10,20);
+        noFill();
+    },
+    "brainWall3" : function() {
+        if(load) {
+            pos = [120,-120];
+            lineData = [[0,-200,250,0],[0,-200,450,91],[250,-200,450,91],[-8,250,250,0],[250,-150,200,180],[50,-200,48,91]];// [x,y,length,rotation] rotation can't be 0 or 90
+            //enemies = [[0,0,120,0],[120,0,130,0]];
+            enemies = [
+            [-25,-200,10,91],[-25,-110,170,91],
+            [-50,-200,200,91],
+            
+            [-150,-200,200,91],
+            
+            [300,-150,200,91],
+            [700,-200,150,91],[700,0,50,91],
+            [650,-200,200,91],
+            [700,50,700,180],];
+            enemyHitBox = [
+            [-25,-200,5,10],[-25,-110,5,170],
+            [-50,-200,5,200],
+            
+            [-150,-200,5,200],
+            
+            [300,-150,5,200],
+            [700,-200,5,150],[700,0,5,50],
+            [650,-200,5,200],
+            [0,50,700,5],];
+            goal = [[-5,150,245,100]];
+            load = false;
+        }
+        strokeWeight(1);
+        drawFaces(lineData);// 3D
+        drawFaces(enemies,[255,0,0,125]);// Enemies and obsticales
+        drawFloor(goal,[0,255,0,125]);
+        dead(enemyHitBox);// You die
+        completed(goal);// goal
+        
+        for(var i = 0;i < 3;i++) {
+            enemies[i][0]+=1;
+            enemyHitBox[i][0]+=1;
+        }
+        enemies[3][0]+=0.5;
+        enemyHitBox[3][0]+=0.5;
+        for(var i = 4;i < enemies.length;i++) {
+            enemies[i][0]-=1;
+            enemyHitBox[i][0]-=1;
+        }
+        
+        //Level Name
+        fill(0, 0, 0);
+        text("Level - \"脳カベ 3\"",10,20);
+        noFill();
+    },
+};
+
+
+var keys = [];
+keyPressed = function() {
+    keys[keyCode] = true;
+    shoot[0] = true;
+};
+keyReleased = function() {
+    keys[keyCode] = false;
+    shoot = [false,true];
+};
+
+noFill();
+draw = function() {
+    
+    frameRate(60);
+    background(255, 255, 255);
+    
+    //Restart Level
+    if(keys[82]) {
+        load = 1;
+    }
+    //Return to Menu
+    if(keys[8]) {
+        load = true;
+        level = -1;
+    }
+    //Map
+    if(keys[88]) {
+        drawMap(lineData,200,300,0.4,[0,0],[0,0,0]);
+        drawMap(enemies,200,300,0.4,[0,0],[255,0,0]);
+        drawMap(bullet,200,300,0.4,[0,0],[0,0,0]);
+        drawFloorMap(goal,200,300,0.4,[0,0],[0,255,0,125]);
+        if(slowmo) {
+            frameRate(30);
+        } else {
+            speed/=4;
+        }
+    }
+    
+    if(level === -1) {
+        levels.menu();
+    }
+    if(level === -2) {
+        levels.options();
+    }
+    if(level === -3) {
+        levels.select();
+    }
+    if(level === 0) {
+        levels.goal();
+    }
+    if(level === 1) {
+        levels.moving();
+    }
+    if(level === 2) {
+        levels.run();
+    }
+    if(level === 3) {
+        levels.map();
+    }
+    if(level === 4) {
+        levels.pace();
+    }
+    if(level === 5) {
+        levels.relax();
+    }
+    if(level === 6) {
+        levels.leftRight();
+    }
+    if(level === 7) {
+        levels.different();
+    }
+    if(level === 8) {
+        levels.brainWall();
+    }
+    if(level === 9) {
+        levels.current();
+    }
+    if(level === 10) {
+        levels.relax();
+    }
+    if(level === 11) {
+        levels.brainWall2();
+    }
+    if(level === 12) {
+        levels.brainWall3();
+    }
+    if(level === 13) {
+        levels.current2();
+    }
+    if(level > 13) {
+        level = -1;
+    }
+    
+    if(level < 1) {
+        timer = millis();//Timer Starts When You Touch Green
+    }
+    if(level <= 13 && level > 0) {
+        text("Time: " + (millis()-timer)/1000,10,40);
+        finalTime = (millis()-timer)/1000;
+    } else {
+        text("Time: " + finalTime,10,40);
+    }
+    text("SlowMo: " + slowmo,10,60);
+    text("Practice Mode: " + practice,10,80);
+    
+    fill(54, 54, 54);
+    rect(0,5,5,80);
+    
+    strokeWeight(1);
+    noFill();
+    drawPro2(bullet);
+    for(var i = 0;i < bullet.length;i++) {
+        bullet[i][1]+=bullet[i][5];
+        //Bullet dissappears after certain distance away
+        if(bullet[i][1] > 150+bullet[i][4]) {
+            bullet.splice(i,i);
+        }
+    }
+    //Makes new bullet when space is pressed
+    if(keys[90] && shoot[0] && shoot[1]) {
+        bullet[bullet.length] = [pos[0]+10,pos[1],20,0,pos[1],4];//x,y,length,rot,orig, speed
+    }
+    
+    if(keys[LEFT]) {
+        pos[0]-=speed;
+    }
+    if(keys[RIGHT]) {
+        pos[0]+=speed;
+    }
+    if(keys[UP]) {
+        pos[1]+=speed;
+    }
+    if(keys[DOWN]) {
+        pos[1]-=speed;
+    }
+    /*if(keys[UP] || keys[DOWN] || keys[RIGHT] || keys[LEFT]) {
+        if(keys[67]) {
+            bobbing = banjoS(millis())*2+20;
+        } else {
+            bobbing = banjoS(millis())+20;
+        }
+    }*/
+    drawCollision(lineData);// Collisions
+    if(keys[67]) {
+        speed = 1.75;
+    } else {speed = 1;}
+};
+
+    }};
+
+    // Get the canvas that Processing-js will use
+    var canvas = document.getElementById("mycanvas"); 
+    // Pass the function sketchProc (defined in myCode.js) to Processing's constructor.
+    var processingInstance = new Processing(canvas, sketchProc); 
+ </script>
+
+</html>
